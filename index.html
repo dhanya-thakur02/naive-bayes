@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naive Bayes Classifier — Deep Dive</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#1a1a2e;font-size:15px;line-height:1.6}
+
+/* HERO */
+.hero{background:#0f1123;color:#fff;padding:2rem 2.5rem 2.2rem;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 80% 50%,rgba(108,99,255,.18) 0%,transparent 70%);pointer-events:none}
+.badge-row{display:flex;align-items:center;gap:10px;margin-bottom:1rem}
+.pill{background:#6c63ff;color:#fff;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 14px;border-radius:999px}
+.pill-sub{color:rgba(255,255,255,.5);font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.hero h1{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.4rem}
+.hero p{color:rgba(255,255,255,.6);font-size:.9rem;max-width:580px;line-height:1.6}
+
+/* PAGE */
+.page{max-width:960px;margin:0 auto;padding:1.5rem 1.5rem 3rem}
+.sec-title{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#888;margin-bottom:.75rem;margin-top:.1rem}
+.card{background:#fff;border:1px solid #e2e4ea;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.25rem}
+.card h3{font-size:1rem;font-weight:700;margin-bottom:.5rem;color:#1a1a2e}
+.card p,.card li{font-size:.875rem;color:#444;line-height:1.65}
+.card ul,.card ol{padding-left:1.2rem;margin-top:.4rem}
+.card li{margin-bottom:.3rem}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.25rem}
+.divider{border:none;border-top:1px solid #e2e4ea;margin:1.75rem 0}
+
+/* STEP CARDS */
+.step-card{background:#fff;border:1px solid #e2e4ea;border-radius:12px;overflow:hidden;margin-bottom:1.5rem}
+.step-card-header{display:flex;align-items:center;gap:14px;padding:1rem 1.5rem;border-bottom:1px solid #e2e4ea;background:#f7f8fc}
+.step-num-badge{width:32px;height:32px;border-radius:50%;background:#6c63ff;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-card-header h3{font-size:1rem;font-weight:700;color:#1a1a2e;margin:0}
+.step-card-header .step-sub{font-size:.78rem;color:#888;margin-top:1px}
+.step-body{padding:1.25rem 1.5rem}
+.step-body p,.step-body li{font-size:.875rem;color:#444;line-height:1.65}
+.step-body ul{padding-left:1.2rem;margin-top:.4rem}
+.step-body li{margin-bottom:.3rem}
+
+/* TOKENS / CHIPS */
+.tokens-wrap{display:flex;flex-wrap:wrap;gap:8px;padding:.5rem 0}
+.tok{display:inline-flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+.tok-word{padding:6px 10px;border-radius:7px;font-size:13px;font-weight:600;border:1.5px solid transparent;transition:transform .12s}
+.tok:hover .tok-word{transform:translateY(-2px)}
+.tok-tag{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:4px}
+
+.t-purple .tok-word{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}.t-purple .tok-tag{background:#ede9fe;color:#5b21b6}
+.t-teal  .tok-word{background:#ccfbf1;color:#065f46;border-color:#5eead4}.t-teal  .tok-tag{background:#ccfbf1;color:#065f46}
+.t-amber .tok-word{background:#fef3c7;color:#92400e;border-color:#fcd34d}.t-amber .tok-tag{background:#fef3c7;color:#92400e}
+.t-coral .tok-word{background:#fee2e2;color:#991b1b;border-color:#fca5a5}.t-coral .tok-tag{background:#fee2e2;color:#991b1b}
+.t-blue  .tok-word{background:#dbeafe;color:#1e40af;border-color:#93c5fd}.t-blue  .tok-tag{background:#dbeafe;color:#1e40af}
+.t-green .tok-word{background:#dcfce7;color:#166534;border-color:#86efac}.t-green .tok-tag{background:#dcfce7;color:#166534}
+.t-gray  .tok-word{background:#f4f4f6;color:#6b7280;border-color:#d1d5db}.t-gray  .tok-tag{background:#f4f4f6;color:#6b7280}
+
+/* info / code box */
+.info-box{background:#f7f8fc;border:1px solid #e2e4ea;border-radius:8px;padding:.7rem 1rem;font-size:.82rem;color:#444;line-height:1.6;margin-top:.75rem;min-height:40px}
+.warn-box{background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:.7rem 1rem;font-size:.82rem;color:#7a5a10;line-height:1.6;margin-top:.75rem}
+.code-box{background:#0f1123;color:#a5f3fc;border-radius:8px;padding:.9rem 1.1rem;font-size:.8rem;font-family:'Courier New',monospace;line-height:1.7;overflow-x:auto;margin-top:.75rem}
+.code-kw{color:#c084fc}.code-str{color:#86efac}.code-comment{color:#64748b}
+
+/* matrix table */
+.mat-wrap{overflow-x:auto;margin-top:.75rem}
+.mat-table{border-collapse:collapse;font-size:12px;font-family:'Courier New',monospace}
+.mat-table th{background:#0f1123;color:#fff;padding:6px 12px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.05em}
+.mat-table td{padding:7px 12px;text-align:center;border:1px solid #e2e4ea}
+.mat-table tr:nth-child(odd) td{background:#f7f8fc}
+.mat-table td.hi{background:#dcfce7;color:#166534;font-weight:700}
+.mat-table td.hi2{background:#fee2e2;color:#991b1b;font-weight:700}
+.mat-table td.zero{color:#c9c9c9}
+.mat-table .row-lbl{background:#f7f8fc;font-weight:700;color:#1a1a2e;text-align:left;font-size:11px}
+
+/* viz bars */
+.viz-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.viz-bar-label{font-size:12px;font-weight:600;min-width:90px;color:#1a1a2e;font-family:'Courier New',monospace}
+.viz-bar-track{flex:1;height:22px;background:#f0f2f5;border-radius:5px;overflow:hidden;position:relative}
+.viz-bar-fill{height:100%;border-radius:5px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+.viz-bar-val{font-size:11px;font-weight:700;min-width:54px;text-align:right;font-family:'Courier New',monospace}
+
+/* controls */
+.controls-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+.controls-row select,.controls-row button,.controls-row input[type=text]{padding:7px 14px;border-radius:8px;border:1.5px solid #e2e4ea;background:#fff;font-size:13px;font-family:inherit;cursor:pointer;color:#1a1a2e;font-weight:500}
+.controls-row input[type=text]{cursor:text;flex:1;min-width:200px}
+.controls-row select:focus,.controls-row button:focus,.controls-row input:focus{outline:2px solid #6c63ff;outline-offset:2px}
+.controls-row button.primary{background:#6c63ff;color:#fff;border-color:#6c63ff}
+.controls-row button.primary:hover{background:#5a52e0}
+.controls-row button.danger{background:#fee2e2;color:#991b1b;border-color:#fca5a5;padding:4px 10px;font-size:11px}
+.controls-row button.danger:hover{background:#fecaca}
+.controls-row label{font-size:12px;font-weight:700;color:#888;display:flex;align-items:center;gap:7px;cursor:pointer}
+.controls-row input[type=checkbox]{accent-color:#6c63ff;width:14px;height:14px;cursor:pointer}
+
+/* corpus table */
+.corpus-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.corpus-table th{background:#0f1123;color:#fff;padding:7px 12px;text-align:left;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.corpus-table td{padding:7px 12px;border-bottom:1px solid #e2e4ea;vertical-align:middle}
+.corpus-table tr:nth-child(even) td{background:#f7f8fc}
+.label-pos{background:#dcfce7;color:#166534;padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700}
+.label-neg{background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700}
+
+/* result */
+.result-box{text-align:center;padding:1.5rem 0 1.25rem}
+.result-label{font-size:1.8rem;font-weight:800;letter-spacing:-.02em}
+.result-sub{font-size:.82rem;color:#888;margin-top:6px}
+.post-bar-wrap{margin-bottom:14px}
+.post-bar-head{display:flex;justify-content:space-between;font-size:.8rem;font-weight:700;margin-bottom:5px}
+.post-track{height:14px;background:#e2e4ea;border-radius:99px;overflow:hidden}
+.post-fill{height:100%;border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+/* comparison table */
+.comp-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.comp-table th{background:#0f1123;color:#fff;padding:8px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.04em}
+.comp-table td{padding:8px 12px;border-bottom:1px solid #e2e4ea;vertical-align:top}
+.comp-table tr:last-child td{border-bottom:none}
+.comp-table tr:nth-child(even) td{background:#f7f8fc}
+.badge-yes{background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.badge-no{background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.badge-partial{background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+
+/* quiz */
+.qcard{background:#fff;border:1px solid #e2e4ea;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem}
+.qnum{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6c63ff;margin-bottom:.35rem}
+.qtext{font-size:.9rem;font-weight:600;color:#1a1a2e;margin-bottom:.9rem;line-height:1.5}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1.5px solid #e2e4ea;background:#fff;cursor:pointer;font-size:.875rem;font-weight:500;color:#1a1a2e;text-align:left;width:100%;font-family:inherit}
+.opt:hover:not([disabled]){background:#f7f8fc;border-color:#bbb}
+.opt-letter{width:22px;height:22px;border-radius:50%;background:#f0f2f5;color:#555;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.opt.correct{background:#dcfce7;border-color:#86efac;color:#166534}
+.opt.correct .opt-letter{background:#86efac;color:#166534}
+.opt.wrong{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
+.opt.wrong .opt-letter{background:#fca5a5;color:#991b1b}
+.opt.show-correct{background:#dcfce7;border-color:#86efac;color:#166534}
+.opt.show-correct .opt-letter{background:#86efac;color:#166534}
+.opt:disabled{cursor:default}
+.qfeedback{margin-top:.75rem;padding:.65rem .9rem;border-radius:8px;font-size:.82rem;line-height:1.55;display:none}
+.qfeedback.ok{display:block;background:#dcfce7;color:#166534;font-weight:600}
+.qfeedback.no{display:block;background:#fee2e2;color:#7f1d1d;font-weight:600}
+.score-box{background:#fff;border:1px solid #e2e4ea;border-radius:12px;padding:1.1rem 1.5rem;display:flex;align-items:center;gap:1.25rem;margin-bottom:1.25rem;flex-wrap:wrap}
+.score-big{font-size:2rem;font-weight:800;color:#6c63ff;min-width:60px}
+.score-info strong{color:#1a1a2e;display:block;margin-bottom:2px}
+.score-info{font-size:.875rem;color:#555;line-height:1.6}
+
+@media(max-width:700px){
+  .two-col,.three-col{grid-template-columns:1fr}
+  .hero{padding:1.5rem}.hero h1{font-size:1.4rem}
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="badge-row">
+    <span class="pill">NLP Series</span>
+    <span class="pill-sub">Probabilistic Classification</span>
+  </div>
+  <h1>Naive Bayes Classifier — Deep Dive</h1>
+  <p>How a handful of word counts and Bayes' Theorem combine to predict whether a sentence is positive or negative — from raw text to a probability you can trust.</p>
+</div>
+
+<div class="page">
+
+<!-- ══════════════════════════════════════
+     SECTION 1 — WHY NAIVE BAYES
+══════════════════════════════════════ -->
+<div class="sec-title">Why Naive Bayes?</div>
+<div class="card">
+  <h3>The fundamental idea: let probability vote</h3>
+  <p>Naive Bayes is a machine learning algorithm that predicts a category — spam vs not spam, positive vs negative — by asking: <em>"given the words in this text, which class was most likely to have produced them?"</em> It answers that question using Bayes' Theorem.</p>
+  <p style="margin-top:.5rem">It is called <strong>"naive"</strong> because it assumes every word's presence is independent of every other word, given the class. That assumption is almost never literally true — but it makes the math fast, the model tiny, and in practice the classifier still performs remarkably well.</p>
+
+  <!-- FLOWCHART -->
+  <div style="margin-top:1.25rem;overflow-x:auto">
+  <svg viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:760px;font-family:'Segoe UI',system-ui,sans-serif">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 Z" fill="#6c63ff"/>
+      </marker>
+      <filter id="sh" x="-10%" y="-10%" width="120%" height="130%">
+        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000014"/>
+      </filter>
+    </defs>
+
+    <rect x="280" y="10" width="200" height="46" rx="10" fill="#0f1123" filter="url(#sh)"/>
+    <text x="380" y="38" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Test Sentence</text>
+
+    <line x1="380" y1="56" x2="380" y2="78" stroke="#6c63ff" stroke-width="2" marker-end="url(#arr)"/>
+
+    <rect x="255" y="80" width="250" height="52" rx="10" fill="#f0f4ff" stroke="#c7d2fe" stroke-width="1.5" filter="url(#sh)"/>
+    <text x="380" y="101" text-anchor="middle" fill="#3730a3" font-size="13.5" font-weight="700">Tokenization</text>
+    <text x="380" y="120" text-anchor="middle" fill="#6366f1" font-size="11">Lowercase · Clean · Split into words</text>
+
+    <line x1="380" y1="132" x2="380" y2="154" stroke="#6c63ff" stroke-width="2" marker-end="url(#arr)"/>
+
+    <rect x="230" y="156" width="300" height="46" rx="10" fill="#6c63ff" filter="url(#sh)"/>
+    <text x="380" y="179" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">Apply Bayes' Theorem per Class</text>
+    <text x="380" y="194" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="10.5">P(class) × P(word₁|class) × P(word₂|class) × ...</text>
+
+    <line x1="380" y1="202" x2="380" y2="222" stroke="#6c63ff" stroke-width="2"/>
+    <line x1="120" y1="222" x2="640" y2="222" stroke="#6c63ff" stroke-width="1.5"/>
+    <line x1="120" y1="222" x2="120" y2="244" stroke="#6c63ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="280" y1="222" x2="280" y2="244" stroke="#6c63ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="480" y1="222" x2="480" y2="244" stroke="#6c63ff" stroke-width="1.5" marker-end="url(#arr)"/>
+    <line x1="640" y1="222" x2="640" y2="244" stroke="#6c63ff" stroke-width="1.5" marker-end="url(#arr)"/>
+
+    <rect x="55" y="246" width="130" height="52" rx="8" fill="#fff" stroke="#e2e4ea" stroke-width="1.5" filter="url(#sh)"/>
+    <text x="120" y="266" text-anchor="middle" fill="#1a1a2e" font-size="11.5" font-weight="700">Prior P(c)</text>
+    <text x="120" y="281" text-anchor="middle" fill="#888" font-size="9.5">Class proportion</text>
+    <text x="120" y="292" text-anchor="middle" fill="#888" font-size="9.5">in training data</text>
+
+    <rect x="215" y="246" width="130" height="52" rx="8" fill="#fff" stroke="#e2e4ea" stroke-width="1.5" filter="url(#sh)"/>
+    <text x="280" y="266" text-anchor="middle" fill="#1a1a2e" font-size="11.5" font-weight="700">Likelihoods</text>
+    <text x="280" y="281" text-anchor="middle" fill="#888" font-size="9.5">P(word | class)</text>
+    <text x="280" y="292" text-anchor="middle" fill="#888" font-size="9.5">with smoothing</text>
+
+    <rect x="415" y="246" width="130" height="52" rx="8" fill="#fff" stroke="#e2e4ea" stroke-width="1.5" filter="url(#sh)"/>
+    <text x="480" y="266" text-anchor="middle" fill="#1a1a2e" font-size="11.5" font-weight="700">Combine</text>
+    <text x="480" y="281" text-anchor="middle" fill="#888" font-size="9.5">log-space sum</text>
+    <text x="480" y="292" text-anchor="middle" fill="#888" font-size="9.5">avoids underflow</text>
+
+    <rect x="575" y="246" width="130" height="52" rx="8" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1.5" filter="url(#sh)"/>
+    <text x="640" y="262" text-anchor="middle" fill="#5b21b6" font-size="11.5" font-weight="700">Normalise</text>
+    <text x="640" y="277" text-anchor="middle" fill="#7c3aed" font-size="9.5">Posterior</text>
+    <text x="640" y="288" text-anchor="middle" fill="#7c3aed" font-size="9.5">probabilities</text>
+
+    <line x1="120" y1="298" x2="120" y2="328" stroke="#6c63ff" stroke-width="1.5"/>
+    <line x1="280" y1="298" x2="280" y2="328" stroke="#6c63ff" stroke-width="1.5"/>
+    <line x1="480" y1="298" x2="480" y2="328" stroke="#6c63ff" stroke-width="1.5"/>
+    <line x1="640" y1="298" x2="640" y2="328" stroke="#6c63ff" stroke-width="1.5"/>
+    <line x1="120" y1="328" x2="640" y2="328" stroke="#6c63ff" stroke-width="1.5"/>
+    <line x1="380" y1="328" x2="380" y2="348" stroke="#6c63ff" stroke-width="2" marker-end="url(#arr)"/>
+
+    <rect x="255" y="350" width="250" height="42" rx="10" fill="#0f1123" filter="url(#sh)"/>
+    <text x="380" y="375" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Predicted Class</text>
+  </svg>
+  </div>
+</div>
+
+<div class="three-col">
+  <div class="card" style="margin-bottom:0">
+    <div style="background:#0f1123;border-radius:8px;padding:.6rem .9rem;margin-bottom:.85rem;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:1.3rem;line-height:1">📧</span>
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#a5f3fc;margin-bottom:3px">Spam Filtering</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.75);line-height:1.5">The original killer app for Naive Bayes — still running inside most inboxes today.</div>
+      </div>
+    </div>
+    <h3>Spam Detection</h3>
+    <div style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:3px 9px;margin:.45rem 0 .6rem;font-size:11px;font-weight:700;color:#92400e;letter-spacing:.03em">
+      <span>⚡</span> Real-world example
+    </div>
+    <p style="font-size:.82rem;color:#555;line-height:1.55">Words like "free", "winner", and "click here" push P(Spam | email) up, while their absence keeps a legitimate email scored as P(Not Spam | email) high.</p>
+  </div>
+  <div class="card" style="margin-bottom:0">
+    <div style="background:#0f1123;border-radius:8px;padding:.6rem .9rem;margin-bottom:.85rem;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:1.3rem;line-height:1">⭐</span>
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#a5f3fc;margin-bottom:3px">Sentiment Analysis</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.75);line-height:1.5">Deciding whether a review, tweet, or comment leans positive or negative.</div>
+      </div>
+    </div>
+    <h3>Sentiment Classification</h3>
+    <div style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:3px 9px;margin:.45rem 0 .6rem;font-size:11px;font-weight:700;color:#92400e;letter-spacing:.03em">
+      <span>⚡</span> Real-world example
+    </div>
+    <p style="font-size:.82rem;color:#555;line-height:1.55">A movie review with "superb", "great", "love" pushes the posterior toward Positive — exactly the demo you'll build on this page.</p>
+  </div>
+  <div class="card" style="margin-bottom:0">
+    <div style="background:#0f1123;border-radius:8px;padding:.6rem .9rem;margin-bottom:.85rem;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:1.3rem;line-height:1">📰</span>
+      <div>
+        <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#a5f3fc;margin-bottom:3px">Document Tagging</div>
+        <div style="font-size:.8rem;color:rgba(255,255,255,.75);line-height:1.5">Sorting articles, support tickets, or papers into topic buckets automatically.</div>
+      </div>
+    </div>
+    <h3>Topic Classification</h3>
+    <div style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:3px 9px;margin:.45rem 0 .6rem;font-size:11px;font-weight:700;color:#92400e;letter-spacing:.03em">
+      <span>⚡</span> Real-world example
+    </div>
+    <p style="font-size:.82rem;color:#555;line-height:1.55">Because it trains in a single pass over word counts, Naive Bayes remains a fast, strong baseline before reaching for heavier models.</p>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════
+     STEP 0 — CORPUS / VOCABULARY
+══════════════════════════════════════ -->
+<div class="sec-title">Step 0 — Training Corpus & Vocabulary</div>
+
+<div class="step-card">
+  <div class="step-card-header">
+    <div class="step-num-badge">0</div>
+    <div>
+      <h3>Build the Training Corpus</h3>
+      <div class="step-sub">Every model starts from labeled examples — add your own and watch the model retrain instantly</div>
+    </div>
+  </div>
+  <div class="step-body">
+    <p>Naive Bayes learns purely from labeled examples. Each sentence is tokenized into words, and the model counts how often each word shows up under each label. That's the entire "training" process — no gradient descent, no iterations, just counting.</p>
+    <p style="font-size:.78rem;color:#555;margin-top:.75rem;margin-bottom:.6rem">Add a sentence below, pick its label, and the vocabulary + every downstream step recomputes live.</p>
+
+    <div class="controls-row">
+      <input type="text" id="newDocText" placeholder="Enter a training sentence…">
+      <select id="newDocLabel">
+        <option value="Positive">Positive</option>
+        <option value="Negative">Negative</option>
+      </select>
+      <button class="primary" id="addDocBtn">＋ Add to corpus</button>
+      <button id="resetCorpusBtn">↺ Reset corpus</button>
+    </div>
+
+    <div class="mat-wrap">
+      <table class="corpus-table">
+        <thead><tr><th>#</th><th>Document</th><th>Tokens</th><th>Label</th><th></th></tr></thead>
+        <tbody id="corpusBody"></tbody>
+      </table>
+    </div>
+
+    <div class="controls-row" style="margin-top:1rem;margin-bottom:0">
+      <label>Laplace smoothing (d):
+        <select id="smoothingSel">
+          <option value="0">0.0 — none</option>
+          <option value="0.1">0.1</option>
+          <option value="0.5">0.5</option>
+          <option value="1" selected>1.0 — Laplace ✓</option>
+          <option value="2">2.0</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="stopwordToggle"> Filter stop words</label>
+      <span style="margin-left:auto;font-size:.8rem;color:#888;font-weight:600">Vocabulary |V|: <strong id="vocabSizeTag" style="color:#6c63ff;font-family:'Courier New',monospace"></strong></span>
+    </div>
+    <div class="info-box" id="vocabInfo"></div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════
+     TEST SENTENCE INPUT (shared across steps)
+══════════════════════════════════════ -->
+<div class="sec-title">Classify a New Sentence</div>
+<div class="card">
+  <h3>Test sentence</h3>
+  <p>Type any phrase below — every step from here on (tokenization → priors → likelihoods → combine → result) walks through how the model classifies exactly this sentence.</p>
+  <div class="controls-row" style="margin-top:.85rem;margin-bottom:0">
+    <input type="text" id="testSentence" value="superb direction but worst story">
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════
+     STEP 1 — TOKENIZE
+══════════════════════════════════════ -->
+<div class="sec-title">Step 1 — Tokenization</div>
+<div class="step-card">
+  <div class="step-card-header">
+    <div class="step-num-badge">1</div>
+    <div>
+      <h3>Break the sentence into words</h3>
+      <div class="step-sub">Lowercase, strip punctuation, split, and check each word against the vocabulary</div>
+    </div>
+  </div>
+  <div class="step-body">
+    <p>The input is lowercased, punctuation removed, and split into tokens. Each token is checked against the trained vocabulary. Words never seen during training are <strong>Out-Of-Vocabulary (OOV)</strong> and contribute nothing to the score.</p>
+    <div class="tokens-wrap" id="step1Tokens"></div>
+    <div class="info-box">💡 OOV words have no learned statistics. Production systems use &lt;UNK&gt; tokens or subword tokenization (BPE) to soften this problem.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STEP 2 — PRIORS
+══════════════════════════════════════ -->
+<div class="sec-title">Step 2 — Prior Probabilities</div>
+<div class="step-card">
+  <div class="step-card-header">
+    <div class="step-num-badge">2</div>
+    <div>
+      <h3>What does the model believe before reading a single word?</h3>
+      <div class="step-sub">P(class) = proportion of training documents with that label</div>
+    </div>
+  </div>
+  <div class="step-body">
+    <p>Before looking at any words, the baseline guess is simply how common each class was in training. A 90/10 class split creates a strong pull toward the majority class — a real challenge with imbalanced datasets.</p>
+    <div id="step2Priors"></div>
+    <div class="info-box" id="step2Info"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STEP 3 — LIKELIHOODS
+══════════════════════════════════════ -->
+<div class="sec-title">Step 3 — Word Likelihoods</div>
+<div class="step-card">
+  <div class="step-card-header">
+    <div class="step-num-badge">3</div>
+    <div>
+      <h3>How likely is each word, given the class?</h3>
+      <div class="step-sub">P(w | c) = (count(w,c) + d) / (total tokens in c + d × |V|)</div>
+    </div>
+  </div>
+  <div class="step-body">
+    <p>For every in-vocabulary word in the test sentence, the model looks up how often that word appeared in each class during training, smoothed by the Laplace constant <code style="background:#f0f2f5;padding:1px 5px;border-radius:4px;font-family:'Courier New',monospace">d</code> you set above.</p>
+    <div id="zeroSmoothingWarning" class="warn-box" style="display:none">⚠️ <strong>Zero smoothing alert:</strong> any word with 0 training count in a class gets P = 0. Since Naive Bayes multiplies likelihoods, a single zero can wipe out an entire class's probability.</div>
+    <div class="mat-wrap" id="step3Table"></div>
+    <div class="info-box">💡 Laplace smoothing (d &gt; 0) guarantees no probability is ever exactly zero, even for words unseen in one particular class.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STEP 4 — COMBINE
+══════════════════════════════════════ -->
+<div class="sec-title">Step 4 — Combining the Evidence</div>
+<div class="step-card">
+  <div class="step-card-header">
+    <div class="step-num-badge">4</div>
+    <div>
+      <h3>Decimal multiplication vs. log-space addition</h3>
+      <div class="step-sub">Two mathematically equal ways to compute the same joint probability</div>
+    </div>
+  </div>
+  <div class="step-body">
+    <p>Naive Bayes multiplies the prior by every word's likelihood. Multiplying many small decimals quickly underflows to 0.0 on real hardware — which is why production systems work in log-space, where multiplication becomes addition.</p>
+    <h4 style="font-size:.875rem;margin-top:.9rem;margin-bottom:.5rem">Method A — Decimal multiplication</h4>
+    <div id="step4Decimal"></div>
+    <h4 style="font-size:.875rem;margin-top:1rem;margin-bottom:.5rem">Method B — Log addition (recommended)</h4>
+    <div id="step4Log"></div>
+    <div class="warn-box">⚠️ <strong>Underflow:</strong> multiplying twenty values like 0.002 can produce a number below 10⁻⁵⁰ — computers round this to 0.0. Log values like −34.82 are handled easily and safely.</div>
+    <div class="code-box">
+<span class="code-comment"># Why log-space works</span>
+<span class="code-comment"># log(P(A) × P(B)) = log P(A) + log P(B)</span>
+<span class="code-kw">import</span> math
+log_score = math.log(prior)
+<span class="code-kw">for</span> word <span class="code-kw">in</span> tokens:
+    log_score += math.log(likelihood[word])  <span class="code-comment"># addition, not multiplication</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STEP 5 — RESULT
+══════════════════════════════════════ -->
+<div class="sec-title">Step 5 — Normalised Result</div>
+<div class="step-card">
+  <div class="step-card-header">
+    <div class="step-num-badge">5</div>
+    <div>
+      <h3>Turning log-scores into a probability</h3>
+      <div class="step-sub">Posterior = joint score ÷ sum of all joint scores (via log-sum-exp)</div>
+    </div>
+  </div>
+  <div class="step-body">
+    <div class="result-box" id="resultBox"></div>
+    <div id="resultBars"></div>
+    <div class="info-box">💡 <strong>Bayes' Rule</strong> says: Posterior ∝ Prior × Likelihood. Dividing by the sum across all classes converts raw joint scores into a true probability distribution that sums to 1.</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════
+     COMPARISON TABLE
+══════════════════════════════════════ -->
+<div class="sec-title">Smoothing — Head to Head</div>
+<div class="card">
+  <h3>How the smoothing constant changes behaviour</h3>
+  <div class="mat-wrap">
+    <table class="comp-table">
+      <thead><tr><th>Smoothing d</th><th>Zero counts handled?</th><th>Bias on rare words</th><th>Best used for</th></tr></thead>
+      <tbody>
+        <tr><td><strong>0.0</strong></td><td><span class="badge-no">No</span></td><td>None</td><td>Teaching the underflow/zero-probability problem</td></tr>
+        <tr><td><strong>0.1 – 0.5</strong></td><td><span class="badge-partial">Mild</span></td><td>Low</td><td>Large vocabularies where over-smoothing hides real signal</td></tr>
+        <tr><td><strong>1.0 (Laplace)</strong></td><td><span class="badge-yes">Yes</span></td><td>Moderate</td><td>The standard default — safe, well-behaved choice</td></tr>
+        <tr><td><strong>2.0+</strong></td><td><span class="badge-yes">Yes</span></td><td>High</td><td>Very small corpora where counts are noisy</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════
+     QUIZ
+══════════════════════════════════════ -->
+<div class="sec-title">Quiz — Test Your Understanding</div>
+<div class="score-box">
+  <div class="score-big" id="scoreNum">0 / 4</div>
+  <div class="score-info">
+    <strong id="scoreTitle">Ready to test your knowledge?</strong>
+    <span id="scoreMsg">Answer all 4 questions below.</span>
+  </div>
+</div>
+
+<div class="qcard">
+  <div class="qnum">Question 1</div>
+  <div class="qtext">Why is Naive Bayes called "Naive"?</div>
+  <div class="opts" id="q1opts">
+    <button class="opt" onclick="pick(1,0,1,this)"><span class="opt-letter">A</span>Because it is too simple to be used in production applications.</button>
+    <button class="opt" onclick="pick(1,1,1,this)"><span class="opt-letter">B</span>Because it assumes all feature words are conditionally independent given the class.</button>
+    <button class="opt" onclick="pick(1,2,1,this)"><span class="opt-letter">C</span>Because it doesn't require any training corpus and works out-of-the-box.</button>
+    <button class="opt" onclick="pick(1,3,1,this)"><span class="opt-letter">D</span>Because it ignores word order and punctuation altogether.</button>
+  </div>
+  <div class="qfeedback" id="q1fb"></div>
+</div>
+
+<div class="qcard">
+  <div class="qnum">Question 2</div>
+  <div class="qtext">Without Laplace smoothing, what happens when a test word was never seen in training for a class?</div>
+  <div class="opts" id="q2opts">
+    <button class="opt" onclick="pick(2,0,2,this)"><span class="opt-letter">A</span>The classifier assigns equal probability to all classes.</button>
+    <button class="opt" onclick="pick(2,1,2,this)"><span class="opt-letter">B</span>The classifier crashes with a division-by-zero error.</button>
+    <button class="opt" onclick="pick(2,2,2,this)"><span class="opt-letter">C</span>P(word|class) = 0, collapsing the entire class joint probability to 0.</button>
+    <button class="opt" onclick="pick(2,3,2,this)"><span class="opt-letter">D</span>The word is automatically treated as a stop word and ignored.</button>
+  </div>
+  <div class="qfeedback" id="q2fb"></div>
+</div>
+
+<div class="qcard">
+  <div class="qnum">Question 3</div>
+  <div class="qtext">Why do production Naive Bayes classifiers work in log-probability space?</div>
+  <div class="opts" id="q3opts">
+    <button class="opt" onclick="pick(3,0,1,this)"><span class="opt-letter">A</span>Log calculations are faster on modern CPU architectures.</button>
+    <button class="opt" onclick="pick(3,1,1,this)"><span class="opt-letter">B</span>Multiplying many small probabilities causes floating-point underflow; adding logs prevents this.</button>
+    <button class="opt" onclick="pick(3,2,1,this)"><span class="opt-letter">C</span>Logarithms normalise vocabulary size and remove outliers automatically.</button>
+    <button class="opt" onclick="pick(3,3,1,this)"><span class="opt-letter">D</span>To convert the model from a linear into a non-linear classifier.</button>
+  </div>
+  <div class="qfeedback" id="q3fb"></div>
+</div>
+
+<div class="qcard">
+  <div class="qnum">Question 4</div>
+  <div class="qtext">How does Laplace smoothing (d = 1) calculate P(w | c)?</div>
+  <div class="opts" id="q4opts">
+    <button class="opt" onclick="pick(4,0,2,this)"><span class="opt-letter">A</span>P(w|c) = count(w,c) / total_tokens_in_class</button>
+    <button class="opt" onclick="pick(4,1,2,this)"><span class="opt-letter">B</span>P(w|c) = (count(w,c)+1) / (total_tokens_in_class+1)</button>
+    <button class="opt" onclick="pick(4,2,2,this)"><span class="opt-letter">C</span>P(w|c) = (count(w,c)+1) / (total_tokens_in_class+|V|)</button>
+    <button class="opt" onclick="pick(4,3,2,this)"><span class="opt-letter">D</span>P(w|c) = (count(w,c)+1) / total_docs_in_class</button>
+  </div>
+  <div class="qfeedback" id="q4fb"></div>
+</div>
+
+</div><!-- /page -->
+
+<script>
+/* ═══════════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════════ */
+const DEFAULT_CORPUS = [
+  { text: "great acting and superb direction", label: "Positive" },
+  { text: "love this fun family movie",        label: "Positive" },
+  { text: "superb story and great visuals",    label: "Positive" },
+  { text: "worst acting bad plot direction",   label: "Negative" },
+  { text: "waste of time boring film",         label: "Negative" },
+  { text: "bad story and awful acting",        label: "Negative" },
+];
+const STOP_WORDS = new Set(['the','a','an','and','or','but','is','are','was','were','to','of','in','on','at','by','for','with','it','this','that']);
+
+let corpus = DEFAULT_CORPUS.map(d => ({...d}));
+
+/* ═══════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════ */
+function tokenize(text, removeStop) {
+  const raw = text.toLowerCase().replace(/[^\w\s']/g,'').split(/\s+/).filter(t=>t.length>0);
+  return removeStop ? raw.filter(w => !STOP_WORDS.has(w)) : raw;
+}
+
+function buildModel() {
+  const removeStop = document.getElementById('stopwordToggle').checked;
+  const smoothing  = parseFloat(document.getElementById('smoothingSel').value);
+  const processed  = corpus.map(d => ({...d, tokens: tokenize(d.text, removeStop)}));
+  const vocabSet = new Set();
+  processed.forEach(d => d.tokens.forEach(t => vocabSet.add(t)));
+  const vocabulary = [...vocabSet].sort();
+  const vocabSize = vocabulary.length;
+  const totalDocs = corpus.length;
+  const classes = [...new Set(corpus.map(d=>d.label))];
+
+  const classStats = {};
+  classes.forEach(c => {
+    classStats[c] = { docCount:0, tokenCounts:{}, totalTokens:0 };
+    vocabulary.forEach(w => classStats[c].tokenCounts[w]=0);
+  });
+  processed.forEach(d => {
+    classStats[d.label].docCount++;
+    d.tokens.forEach(t => {
+      classStats[d.label].tokenCounts[t] = (classStats[d.label].tokenCounts[t]||0)+1;
+      classStats[d.label].totalTokens++;
+    });
+  });
+  classes.forEach(c => {
+    const s = classStats[c];
+    s.prior = totalDocs>0 ? s.docCount/totalDocs : 0;
+    s.likelihoods = {};
+    vocabulary.forEach(w => {
+      const num = (s.tokenCounts[w]||0) + smoothing;
+      const den = s.totalTokens + smoothing*vocabSize;
+      s.likelihoods[w] = den>0 ? num/den : 0;
+    });
+  });
+  return { vocabulary, vocabSize, totalDocs, classes, classStats, processed, smoothing, removeStop };
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER: CORPUS TABLE + VOCAB INFO
+═══════════════════════════════════════════════ */
+function renderCorpus(model) {
+  const body = document.getElementById('corpusBody');
+  body.innerHTML = '';
+  model.processed.forEach((doc, idx) => {
+    const tr = document.createElement('tr');
+    const tokChips = doc.tokens.map(t => `<span class="tok t-gray" style="display:inline-block;margin:1px"><span class="tok-word" style="padding:2px 7px;font-size:11px">${t}</span></span>`).join('');
+    tr.innerHTML = `
+      <td style="color:#888;font-family:'Courier New',monospace">${idx+1}</td>
+      <td style="font-style:italic;color:#444">"${doc.text}"</td>
+      <td>${tokChips}</td>
+      <td><span class="${doc.label==='Positive'?'label-pos':'label-neg'}">${doc.label}</span></td>
+      <td><button class="danger" onclick="removeDoc(${idx})">Remove</button></td>
+    `;
+    body.appendChild(tr);
+  });
+  document.getElementById('vocabSizeTag').textContent = model.vocabSize;
+  const maxDf = Math.max(1, ...model.vocabulary.map(w => model.classes.reduce((s,c)=> s + (model.classStats[c].tokenCounts[w]>0?1:0), 0)));
+  document.getElementById('vocabInfo').innerHTML = `Vocabulary: ${model.vocabulary.map(w=>{
+    const df = model.classes.reduce((s,c)=> s + (model.classStats[c].tokenCounts[w]>0?1:0), 0);
+    return `<span class="tok t-purple" style="display:inline-block;margin:2px"><span class="tok-word" style="padding:3px 9px;font-size:11px">${w}</span></span>`;
+  }).join('') || '<em style="color:#aaa">empty — add a training sentence</em>'}`;
+}
+
+function removeDoc(idx) { corpus.splice(idx,1); recompute(); }
+
+/* ═══════════════════════════════════════════════
+   RENDER: STEP 1 — TOKENIZE
+═══════════════════════════════════════════════ */
+function renderStep1(model, sentence) {
+  const vocabSet = new Set(model.vocabulary);
+  const tokens = tokenize(sentence, model.removeStop);
+  const wrap = document.getElementById('step1Tokens');
+  if (tokens.length===0) { wrap.innerHTML = '<span style="color:#aaa;font-style:italic">No tokens — enter a sentence above.</span>'; return; }
+  wrap.innerHTML = tokens.map(tok => {
+    const oov = !vocabSet.has(tok);
+    return `<div class="tok ${oov?'t-gray':'t-blue'}"><span class="tok-word">${tok}${oov?' [OOV]':''}</span></div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER: STEP 2 — PRIORS
+═══════════════════════════════════════════════ */
+function renderStep2(model) {
+  const wrap = document.getElementById('step2Priors');
+  let html = '<div class="two-col" style="margin-bottom:0">';
+  model.classes.forEach(c => {
+    const s = model.classStats[c];
+    const isPos = c==='Positive';
+    const pct = Math.round(s.prior*100);
+    html += `<div style="border:1.5px solid ${isPos?'#86efac':'#fca5a5'};border-radius:10px;padding:1rem 1.1rem">
+      <p style="font-size:.78rem;font-weight:700;color:${isPos?'#166534':'#991b1b'};text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">P(${c})</p>
+      <div style="font-size:1.8rem;font-weight:800;color:${isPos?'#166534':'#991b1b'};margin-bottom:.5rem">${s.prior.toFixed(3)}</div>
+      <div class="viz-bar-track" style="height:10px"><div class="viz-bar-fill" style="width:${pct}%;background:${isPos?'#10b981':'#ef4444'}"></div></div>
+      <div style="font-size:.75rem;color:#888;margin-top:.4rem">${s.docCount} / ${model.totalDocs} documents</div>
+    </div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+  document.getElementById('step2Info').innerHTML = `💡 With ${model.totalDocs} total documents, a more imbalanced split would pull the prior — and therefore the default guess — harder toward the majority class.`;
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER: STEP 3 — LIKELIHOODS
+═══════════════════════════════════════════════ */
+function renderStep3(model, sentence) {
+  const vocabSet = new Set(model.vocabulary);
+  const tokens = tokenize(sentence, model.removeStop).filter(t => vocabSet.has(t));
+  document.getElementById('zeroSmoothingWarning').style.display = model.smoothing===0 ? 'block' : 'none';
+  const wrap = document.getElementById('step3Table');
+  if (tokens.length===0) { wrap.innerHTML = '<div class="warn-box">⚠️ No vocabulary matches in this sentence. Try words from the training corpus.</div>'; return; }
+  let html = '<table class="mat-table" style="width:100%"><thead><tr><th>Word</th>';
+  model.classes.forEach(c => html += `<th>P(w|${c})</th>`);
+  html += '</tr></thead><tbody>';
+  tokens.forEach(tok => {
+    html += `<tr><td class="row-lbl" style="text-align:center">${tok}</td>`;
+    model.classes.forEach(c => {
+      const p = model.classStats[c].likelihoods[tok]||0;
+      html += `<td class="${c==='Positive'?'hi':'hi2'}">${p.toFixed(5)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER: STEP 4 — COMBINE
+═══════════════════════════════════════════════ */
+function renderStep4(model, sentence) {
+  const vocabSet = new Set(model.vocabulary);
+  const tokens = tokenize(sentence, model.removeStop).filter(t => vocabSet.has(t));
+  let decHtml = '', logHtml = '';
+  const calc = {};
+  model.classes.forEach(c => {
+    const s = model.classStats[c];
+    let prod = 1; const parts = [];
+    let logSum = Math.log(s.prior>0?s.prior:1e-12); const logParts = [`logP(${c})=${Math.log(s.prior>0?s.prior:1e-12).toFixed(3)}`];
+    tokens.forEach(t => {
+      const p = s.likelihoods[t]||0;
+      prod *= p; parts.push(`P(${t}|${c})=${p.toFixed(4)}`);
+      const lp = p>0?Math.log(p):-Infinity;
+      logSum += lp; logParts.push(`logP(${t}|${c})=${lp.toFixed(3)}`);
+    });
+    const joint = s.prior * prod;
+    calc[c] = { joint, logSum };
+    decHtml += `<div class="info-box" style="margin-top:.5rem"><strong>P(${c}, text)</strong><br><span style="font-family:'Courier New',monospace;font-size:11px;color:#555;word-break:break-all">P(${c})=${s.prior.toFixed(3)} × ${parts.join(' × ')||'1'}</span><br>= <strong style="font-family:'Courier New',monospace">${joint.toExponential(4)}</strong></div>`;
+    logHtml += `<div class="info-box" style="margin-top:.5rem"><strong>log P(${c}, text)</strong><br><span style="font-family:'Courier New',monospace;font-size:11px;color:#555;word-break:break-all">${logParts.join(' + ')}</span><br>= <strong style="font-family:'Courier New',monospace">${logSum.toFixed(4)}</strong></div>`;
+  });
+  document.getElementById('step4Decimal').innerHTML = decHtml;
+  document.getElementById('step4Log').innerHTML = logHtml;
+  return calc;
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER: STEP 5 — RESULT
+═══════════════════════════════════════════════ */
+function renderStep5(model, calc) {
+  const logs = model.classes.map(c => calc[c].logSum);
+  const maxLog = Math.max(...logs);
+  const exps = {}; let sumExp = 0;
+  model.classes.forEach(c => { const v = Math.exp(calc[c].logSum-maxLog); exps[c]=v; sumExp+=v; });
+  const post = {}; model.classes.forEach(c => post[c] = sumExp>0 ? exps[c]/sumExp : 0);
+  let predicted = model.classes[0]; model.classes.forEach(c => { if (post[c] > post[predicted]) predicted = c; });
+
+  const isPos = predicted==='Positive';
+  document.getElementById('resultBox').innerHTML = `
+    <div class="result-label" style="color:${isPos?'#166534':'#991b1b'}">${isPos?'🟢 Positive Sentiment':'🔴 Negative Sentiment'}</div>
+    <div class="result-sub">predicted class for the test sentence</div>`;
+
+  let html = '';
+  model.classes.forEach(c => {
+    const pct = Math.round(post[c]*100);
+    const cIsPos = c==='Positive';
+    html += `<div class="post-bar-wrap">
+      <div class="post-bar-head"><span>P(${c} | text)</span><span style="font-family:'Courier New',monospace">${post[c].toFixed(4)} (${pct}%)</span></div>
+      <div class="post-track"><div class="post-fill" style="width:${pct}%;background:${cIsPos?'#10b981':'#ef4444'}"></div></div>
+    </div>`;
+  });
+  document.getElementById('resultBars').innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════
+   MASTER RECOMPUTE
+═══════════════════════════════════════════════ */
+function recompute() {
+  const model = buildModel();
+  const sentence = document.getElementById('testSentence').value;
+  renderCorpus(model);
+  renderStep1(model, sentence);
+  renderStep2(model);
+  renderStep3(model, sentence);
+  const calc = renderStep4(model, sentence);
+  renderStep5(model, calc);
+}
+
+document.getElementById('addDocBtn').addEventListener('click', () => {
+  const text = document.getElementById('newDocText').value.trim();
+  if (!text) return;
+  const label = document.getElementById('newDocLabel').value;
+  corpus.push({text, label});
+  document.getElementById('newDocText').value = '';
+  recompute();
+});
+document.getElementById('newDocText').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('addDocBtn').click(); });
+document.getElementById('resetCorpusBtn').addEventListener('click', () => { corpus = DEFAULT_CORPUS.map(d=>({...d})); recompute(); });
+document.getElementById('smoothingSel').addEventListener('change', recompute);
+document.getElementById('stopwordToggle').addEventListener('change', recompute);
+document.getElementById('testSentence').addEventListener('input', recompute);
+
+recompute();
+
+/* ═══════════════════════════════════════════════
+   QUIZ
+═══════════════════════════════════════════════ */
+const EXP = {
+  1: [
+    'Too simple is a fair critique of its assumptions, but that is not why it is called "naive" — the name refers to a specific mathematical assumption.',
+    '✅ Correct! It is called "naive" because of the strong assumption that all features (words) are conditionally independent given the class label. In reality, words like "neural" and "networks" are highly correlated — yet Naive Bayes still performs surprisingly well.',
+    'Naive Bayes absolutely requires a training corpus to estimate priors and likelihoods — it cannot work out-of-the-box.',
+    'Ignoring word order is true of the Bag-of-Words representation it often uses, but that is not the source of the "naive" name.'
+  ],
+  2: [
+    'The model does not equalise probabilities on unseen words — it actually collapses the score, the opposite of equal treatment.',
+    'It does not crash; division by zero does not occur here since the denominator (total tokens) is unaffected. The numerator simply becomes 0.',
+    '✅ Correct! Without smoothing (d=0), P(word|class) = 0/total = 0. Since Naive Bayes multiplies conditional probabilities, a single zero wipes out the entire class probability — no matter how strong the other signals are.',
+    'Stop-word filtering is a separate, optional preprocessing choice — it has nothing to do with unseen words automatically.'
+  ],
+  3: [
+    'Log calculations are not meaningfully faster on modern CPUs — the real motivation is numerical stability, not speed.',
+    '✅ Correct! Multiplying hundreds of small decimals (e.g. 0.01 × 0.005…) quickly causes numerical underflow — the computer rounds the result to 0.0. Log space transforms multiplication into addition: log(P(A)×P(B)) = log P(A) + log P(B), which is numerically stable.',
+    'Logarithms do not normalise vocabulary size or remove outliers — that is not how this transformation works.',
+    'Log-space is purely a numerical reparameterisation; it does not change the linear/non-linear nature of the underlying decision rule.'
+  ],
+  4: [
+    'This is the unsmoothed formula — it gives zero probability to any word unseen in a class, exactly the problem smoothing fixes.',
+    'Adding 1 to only the denominator (and not scaling by vocabulary size) would not keep probabilities properly normalised across the whole vocabulary.',
+    '✅ Correct! Adding 1 to the numerator and |V| to the denominator ensures the probabilities still sum to 1 over the full vocabulary — maintaining a valid probability distribution even for unseen words.',
+    'Dividing by document count rather than token count would not produce a valid per-word probability distribution.'
+  ]
+};
+const answered = {}; let correctCount = 0;
+function pick(qnum, optIdx, correctIdx, btn) {
+  if (answered[qnum] !== undefined) return;
+  answered[qnum] = optIdx;
+  const isCorrect = optIdx === correctIdx;
+  if (isCorrect) correctCount++;
+  const opts = document.querySelectorAll('#q'+qnum+'opts .opt');
+  opts.forEach((b,i) => { b.disabled = true; if (i===correctIdx && !isCorrect) b.classList.add('show-correct'); });
+  opts[optIdx].classList.add(isCorrect ? 'correct' : 'wrong');
+  const fb = document.getElementById('q'+qnum+'fb');
+  fb.className = 'qfeedback ' + (isCorrect ? 'ok' : 'no');
+  fb.innerHTML = EXP[qnum][optIdx];
+  const done = Object.keys(answered).length;
+  document.getElementById('scoreNum').textContent = correctCount + ' / 4';
+  if (done < 4) {
+    document.getElementById('scoreTitle').textContent = correctCount + ' correct so far';
+    document.getElementById('scoreMsg').textContent = (4-done) + ' question' + (4-done>1?'s':'') + ' remaining.';
+  } else {
+    const pct = Math.round(correctCount/4*100);
+    document.getElementById('scoreTitle').textContent = pct>=75 ? 'Excellent! You understand Naive Bayes 🎉' : pct>=50 ? 'Good effort — review the red answers above.' : 'Keep studying — it takes practice!';
+    document.getElementById('scoreMsg').textContent = 'Final score: ' + correctCount + '/4 (' + pct + '%)';
+  }
+}
+</script>
+</body>
+</html>
